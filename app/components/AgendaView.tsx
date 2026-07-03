@@ -5,7 +5,7 @@ export default function AgendaView() {
 
   useEffect(() => {
     // Reemplaza con la URL de tu Webhook GET de n8n que trae el calendario
-    fetch('TU_WEBHOOK_N8N/agenda-hoy')
+    fetch('https://n8n.66.94.104.64.nip.io/webhook/agenda-hoy')
       .then(res => res.json())
       .then(data => setAppointments(data));
   }, []);
