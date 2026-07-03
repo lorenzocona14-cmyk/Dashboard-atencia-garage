@@ -20,7 +20,7 @@ export default function SessionsMonitor() {
       });
   }, []);
 
-  const forceClose = async (telefono) => {
+  const forceClose = async (telefono: string) => {
     // Llamada al webhook de n8n para forzar el cierre de la sesión
     await fetch('https://n8n.66.94.104.64.nip.io/webhook/forzar-cierre', {
       method: 'POST',
