@@ -1,16 +1,25 @@
 import React, { useState, useEffect } from 'react';
 
+// 1. Definimos la interfaz para que TypeScript sepa qué trae el calendario
+interface Appointment {
+  summary: string;
+  start: string;
+  end: string;
+}
+
 export default function AgendaView() {
-  const [appointments, setAppointments] = useState([]);
+  // 2. Le indicamos a useState que va a manejar un array de Appointments
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   useEffect(() => {
-    // Reemplaza con la URL de tu Webhook GET de n8n que trae el calendario
+    // Recuerda reemplazar esto con la URL de tu Webhook GET de n8n
     fetch('https://n8n.66.94.104.64.nip.io/webhook/agenda-hoy')
       .then(res => res.json())
       .then(data => setAppointments(data));
   }, []);
 
-  const renderServiceTag = (title) => {
+  // 3. ACA ESTÁ LA SOLUCIÓN: le decimos explícitamente que "title" es un string
+  const renderServiceTag = (title: string) => {
     const isLube = title.toLowerCase().includes('aceite') || title.toLowerCase().includes('filtro');
     return isLube ? (
       <span className="bg-[#1E3A8A] text-[#93C5FD] text-xs px-2 py-1 rounded-full">Lubricentro</span>
@@ -20,7 +29,7 @@ export default function AgendaView() {
   };
 
   return (
-    <div className="bg-[#121212] text-[#E0E0E0] p-6 rounded-xl border border-[#2A2A2A] shadow-md w-full relative h-full min-h-[400px]">
+    <div className="bg-zinc-900 text-[#E0E0E0] p-6 rounded-xl border border-zinc-800 shadow-md w-full relative h-full min-h-[400px]">
       <h2 className="text-xl font-semibold mb-4 tracking-wide text-white">Agenda de Hoy</h2>
       <div className="grid grid-cols-1 gap-3">
         {appointments.length === 0 ? (
