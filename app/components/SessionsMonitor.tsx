@@ -22,7 +22,7 @@ export default function SessionsMonitor() {
 
   const forceClose = async (telefono) => {
     // Llamada al webhook de n8n para forzar el cierre de la sesión
-    await fetch('TU_WEBHOOK_N8N/forzar-cierre', {
+    await fetch('https://n8n.66.94.104.64.nip.io/webhook/forzar-cierre', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ telefono })
