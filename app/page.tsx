@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Car, Send, Users, RefreshCw, BarChart3, CalendarClock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import NavBar from './components/NavBar';
+import SessionsMonitor from './components/SessionsMonitor'; // COMPONENTE NUEVO AGREGADO
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -60,11 +61,6 @@ export default function Dashboard() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthIso = startOfMonth.toISOString();
 
-    // Turnos reales: se leen del Google Calendar (via /api/calendario), que ya refleja
-    // altas, modificaciones y cancelaciones hechas por el bot. Antes se contaban filas de
-    // "lavadero_turnos" en Supabase, pero esa tabla registra CADA conversacion cerrada del
-    // bot (siempre con estado "finalizado"), sin distinguir si hubo un turno real, una
-    // modificacion o una cancelacion — por eso el contador nunca bajaba.
     let turnosDelMes: CalendarioEvent[] = [];
     try {
       const res = await fetch(`/api/calendario?year=${now.getFullYear()}&month=${now.getMonth() + 1}`, { cache: 'no-store' });
@@ -126,8 +122,6 @@ export default function Dashboard() {
   useEffect(() => {
     fetchMetrics();
 
-    // El Calendar no tiene canal realtime, asi que refrescamos cada 2 minutos ademas
-    // del boton manual y de los canales de Supabase para leads/mensajes.
     const intervalId = setInterval(fetchMetrics, 120000);
 
     const scraperSub = supabase.channel('scraper_changes').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scraper_logs' }, fetchMetrics).subscribe();
@@ -185,7 +179,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
           <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl shadow-black/50">
             <div className="flex items-center gap-2 mb-8">
               <BarChart3 className="w-5 h-5 text-zinc-400" />
@@ -242,6 +236,12 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* CONTENEDOR NUEVO DEL MONITOR DE SESIONES */}
+        <div className="w-full">
+           <SessionsMonitor />
+        </div>
+
+        {/* BOTÓN FLOTANTE ALINEADO */}
         <button
           onClick={fetchMetrics}
           className="fixed bottom-8 right-8 bg-zinc-800 hover:bg-zinc-700 text-white p-4 rounded-full shadow-2xl border border-zinc-700 transition-all flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-zinc-500 z-50"
