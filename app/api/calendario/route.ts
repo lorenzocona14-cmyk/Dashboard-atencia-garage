@@ -10,20 +10,34 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const now = new Date();
-    const year = parseInt(searchParams.get('year') || '') || now.getFullYear();
-    const monthParam = parseInt(searchParams.get('month') || '') || (now.getMonth() + 1);
-    const month = Math.min(Math.max(monthParam, 1), 12);
+    const startIso = searchParams.get('start');
+    const endIso = searchParams.get('end');
+    const yearParam = searchParams.get('year');
+    const monthParam = searchParams.get('month');
 
+    const now = new Date();
     const events = await fetchCalendarEvents(getIcalUrl());
 
-    const startOfMonth = new Date(year, month - 1, 1);
-    const startOfNextMonth = new Date(year, month, 1);
+    let startDate: Date;
+    let endDate: Date;
+    let year = now.getFullYear();
+    let month = now.getMonth() + 1;
 
-    const eventsInMonth = events.filter(e => e.start >= startOfMonth && e.start < startOfNextMonth);
-    eventsInMonth.sort((a, b) => a.start.getTime() - b.start.getTime());
+    if (startIso && endIso) {
+      startDate = new Date(startIso);
+      endDate = new Date(endIso);
+    } else {
+      year = parseInt(yearParam || '') || now.getFullYear();
+      const m = parseInt(monthParam || '') || (now.getMonth() + 1);
+      month = Math.min(Math.max(m, 1), 12);
+      startDate = new Date(year, month - 1, 1);
+      endDate = new Date(year, month, 1);
+    }
 
-    const formatted = eventsInMonth.map(e => ({
+    const filteredEvents = events.filter(e => e.start >= startDate && e.start < endDate);
+    filteredEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    const formatted = filteredEvents.map(e => ({
       id: e.id,
       title: e.title,
       description: e.description,
@@ -34,9 +48,12 @@ export async function GET(request: NextRequest) {
       time: e.start.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Argentina/Mendoza' }),
     }));
 
-    return NextResponse.json({ year, month, events: formatted });
+    return NextResponse.json({ 
+      ...(startIso && endIso ? { start: startIso, end: endIso } : { year, month }), 
+      events: formatted 
+    });
   } catch (error) {
-    console.error('Error al procesar calendario mensual:', error);
+    console.error('Error al procesar calendario:', error);
     return NextResponse.json({ error: 'Error cargando calendario' }, { status: 500 });
   }
 }

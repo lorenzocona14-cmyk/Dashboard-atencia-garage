@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Car, Send, Users, RefreshCw, BarChart3, CalendarClock } from 'lucide-react';
+import { Car, Send, Users, RefreshCw, BarChart3, CalendarClock, Filter, MessageSquareReply } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import NavBar from './components/NavBar';
 import SessionsMonitor from './components/SessionsMonitor'; // COMPONENTE NUEVO AGREGADO
@@ -37,9 +37,11 @@ export default function Dashboard() {
   const [turnosHoy, setTurnosHoy] = useState(0);
   const [encontradosHoy, setEncontradosHoy] = useState(0);
   const [enviadosHoy, setEnviadosHoy] = useState(0);
-  const [chartData, setChartData] = useState<{ fecha: string; Turnos: number; Leads: number; Mensajes: number }[]>([]);
+  const [respuestasHoy, setRespuestasHoy] = useState(0);
+  const [chartData, setChartData] = useState<{ fecha: string; Turnos: number; Leads: number; Mensajes: number; Respuestas: number }[]>([]);
   const [agenda, setAgenda] = useState<AgendaItem[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dateFilter, setDateFilter] = useState('este_mes');
 
   const fetchAgendaLocal = useCallback(async () => {
     try {
@@ -58,66 +60,103 @@ export default function Dashboard() {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayIso = startOfToday.toISOString();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthIso = startOfMonth.toISOString();
+    const tomorrowIso = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-    let turnosDelMes: CalendarioEvent[] = [];
-    try {
-      const res = await fetch(`/api/calendario?year=${now.getFullYear()}&month=${now.getMonth() + 1}`, { cache: 'no-store' });
-      const data = await res.json();
-      if (!data.error) turnosDelMes = data.events;
-    } catch (error) {
-      console.error('Error cargando turnos del mes:', error);
+    let chartStart: Date;
+    let chartEnd: Date;
+
+    if (dateFilter === 'este_mes') {
+      chartStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      chartEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    } else if (dateFilter === 'mes_pasado') {
+      chartStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      chartEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (dateFilter === 'ultimos_7_dias') {
+      chartStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+      chartEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    } else if (dateFilter === 'ultimos_30_dias') {
+      chartStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+      chartEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    } else {
+      chartStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      chartEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     }
 
-    const todayKey = todayKeyMendoza();
-    const turnosHoyCount = turnosDelMes.filter(e => e.dateKey === todayKey).length;
+    const startIso = chartStart.toISOString();
+    const endIso = chartEnd.toISOString();
+
+    // Turnos hoy
+    let turnosHoyCount = 0;
+    try {
+      const resHoy = await fetch(`/api/calendario?start=${todayIso}&end=${tomorrowIso}`, { cache: 'no-store' });
+      const dataHoy = await resHoy.json();
+      if (!dataHoy.error) turnosHoyCount = dataHoy.events.length;
+    } catch (error) {
+      console.error('Error cargando turnos de hoy:', error);
+    }
+
+    // Turnos grafico
+    let turnosGrafico: CalendarioEvent[] = [];
+    try {
+      const res = await fetch(`/api/calendario?start=${startIso}&end=${endIso}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!data.error) turnosGrafico = data.events;
+    } catch (error) {
+      console.error('Error cargando turnos grafico:', error);
+    }
 
     const { data: dataScraperHoy } = await supabase.from('scraper_logs').select('items_extraidos').gte('created_at', todayIso);
     const totalEncontrados = dataScraperHoy?.reduce((acc, curr) => acc + (curr.items_extraidos || 0), 0) || 0;
     const { count: countEnviados } = await supabase.from('mensajes_scraper').select('*', { count: 'exact', head: true }).gte('created_at', todayIso);
+    const { count: countRespuestas } = await supabase.from('mensajes_scraper').select('*', { count: 'exact', head: true }).gte('created_at', todayIso).eq('respondio', true);
 
     setTurnosHoy(turnosHoyCount);
     setEncontradosHoy(totalEncontrados);
     setEnviadosHoy(countEnviados || 0);
+    setRespuestasHoy(countRespuestas || 0);
 
-    const { data: scraperMes } = await supabase.from('scraper_logs').select('created_at, items_extraidos').gte('created_at', monthIso);
-    const { data: mensajesMes } = await supabase.from('mensajes_scraper').select('created_at').gte('created_at', monthIso);
+    const { data: scraperChart } = await supabase.from('scraper_logs').select('created_at, items_extraidos').gte('created_at', startIso).lt('created_at', endIso);
+    // Asumimos que la columna se llama 'respondio' (booleano). Si no existe fallará silenciosamente y devolverá null o error manejado por el count.
+    const { data: mensajesChart } = await supabase.from('mensajes_scraper').select('created_at, respondio').gte('created_at', startIso).lt('created_at', endIso);
 
-    const dataMap: Record<string, { fecha: string, Turnos: number, Leads: number, Mensajes: number }> = {};
+    const dataMap: Record<string, { fecha: string, Turnos: number, Leads: number, Mensajes: number, Respuestas: number }> = {};
     const formatToDay = (isoString: string) => {
       const d = new Date(isoString);
       return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
     };
 
-    turnosDelMes.forEach(t => {
+    // Pre-llenar dias para que el grafico no tenga huecos
+    let current = new Date(chartStart);
+    while (current < chartEnd) {
+      const d = `${current.getDate().toString().padStart(2, '0')}/${(current.getMonth() + 1).toString().padStart(2, '0')}`;
+      dataMap[d] = { fecha: d, Turnos: 0, Leads: 0, Mensajes: 0, Respuestas: 0 };
+      current.setDate(current.getDate() + 1);
+    }
+
+    turnosGrafico.forEach(t => {
       const [, mm, dd] = t.dateKey.split('-');
       const d = `${dd}/${mm}`;
-      if (!dataMap[d]) dataMap[d] = { fecha: d, Turnos: 0, Leads: 0, Mensajes: 0 };
-      dataMap[d].Turnos += 1;
+      if (dataMap[d]) dataMap[d].Turnos += 1;
     });
-    scraperMes?.forEach(s => {
+    scraperChart?.forEach(s => {
       const d = formatToDay(s.created_at);
-      if (!dataMap[d]) dataMap[d] = { fecha: d, Turnos: 0, Leads: 0, Mensajes: 0 };
-      dataMap[d].Leads += (s.items_extraidos || 0);
+      if (dataMap[d]) dataMap[d].Leads += (s.items_extraidos || 0);
     });
-    mensajesMes?.forEach(m => {
+    mensajesChart?.forEach(m => {
       const d = formatToDay(m.created_at);
-      if (!dataMap[d]) dataMap[d] = { fecha: d, Turnos: 0, Leads: 0, Mensajes: 0 };
-      dataMap[d].Mensajes += 1;
+      if (dataMap[d]) {
+        dataMap[d].Mensajes += 1;
+        if (m.respondio === true) {
+          dataMap[d].Respuestas += 1;
+        }
+      }
     });
 
-    const sortedData = Object.values(dataMap).sort((a, b) => {
-      const [dayA, monthA] = a.fecha.split('/');
-      const [dayB, monthB] = b.fecha.split('/');
-      return new Date(now.getFullYear(), Number(monthA) - 1, Number(dayA)).getTime() - new Date(now.getFullYear(), Number(monthB) - 1, Number(dayB)).getTime();
-    });
-
-    setChartData(sortedData);
+    setChartData(Object.values(dataMap));
     fetchAgendaLocal();
 
     setTimeout(() => setIsRefreshing(false), 500);
-  }, [fetchAgendaLocal]);
+  }, [fetchAgendaLocal, dateFilter]);
 
   useEffect(() => {
     fetchMetrics();
@@ -144,7 +183,7 @@ export default function Dashboard() {
 
         <NavBar />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between h-40 shadow-xl shadow-black/50 transition-all hover:border-zinc-700">
             <div className="flex items-center justify-between text-zinc-400">
               <span className="text-sm font-medium tracking-wide">Turnos Agendados</span>
@@ -177,13 +216,39 @@ export default function Dashboard() {
               <span className="text-xs text-zinc-500 font-medium">HOY</span>
             </div>
           </div>
+
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between h-40 shadow-xl shadow-black/50 transition-all hover:border-zinc-700">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="text-sm font-medium tracking-wide">Leads que Respondieron</span>
+              <MessageSquareReply className="w-5 h-5 text-amber-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-light text-white">{respuestasHoy}</span>
+              <span className="text-xs text-zinc-500 font-medium">HOY</span>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
           <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl shadow-black/50">
-            <div className="flex items-center gap-2 mb-8">
-              <BarChart3 className="w-5 h-5 text-zinc-400" />
-              <h2 className="text-lg font-medium text-zinc-200 tracking-wide">Rendimiento Mensual</h2>
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-zinc-400" />
+                <h2 className="text-lg font-medium text-zinc-200 tracking-wide">Rendimiento</h2>
+              </div>
+              <div className="flex items-center gap-2 bg-zinc-950/50 border border-zinc-800 rounded-lg px-3 py-1.5 hover:border-cyan-500/30 transition-colors">
+                <Filter className="w-4 h-4 text-zinc-400" />
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="bg-transparent text-sm text-zinc-300 focus:outline-none cursor-pointer appearance-none outline-none"
+                >
+                  <option value="este_mes">Este Mes</option>
+                  <option value="mes_pasado">Mes Anterior</option>
+                  <option value="ultimos_7_dias">Últimos 7 días</option>
+                  <option value="ultimos_30_dias">Últimos 30 días</option>
+                </select>
+              </div>
             </div>
             {chartData.length > 0 ? (
               <div className="h-72 w-full">
@@ -197,6 +262,7 @@ export default function Dashboard() {
                     <Bar dataKey="Turnos" fill="#22d3ee" radius={[4, 4, 0, 0]} maxBarSize={40} />
                     <Bar dataKey="Leads" fill="#34d399" radius={[4, 4, 0, 0]} maxBarSize={40} />
                     <Bar dataKey="Mensajes" fill="#818cf8" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar dataKey="Respuestas" fill="#fbbf24" radius={[4, 4, 0, 0]} maxBarSize={40} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
