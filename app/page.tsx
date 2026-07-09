@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Car, Send, Users, RefreshCw, BarChart3, CalendarClock, Filter, MessageSquareReply } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import NavBar from './components/NavBar';
-import SessionsMonitor from './components/SessionsMonitor'; // COMPONENTE NUEVO AGREGADO
+
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -302,10 +302,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* CONTENEDOR NUEVO DEL MONITOR DE SESIONES */}
-        <div className="w-full">
-           <SessionsMonitor />
-        </div>
+
 
         {/* BOTÓN FLOTANTE ALINEADO */}
         <button

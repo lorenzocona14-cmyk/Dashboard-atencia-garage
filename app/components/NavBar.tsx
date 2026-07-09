@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Users } from 'lucide-react';
 
 export default function NavBar() {
   const pathname = usePathname();
@@ -23,6 +23,10 @@ export default function NavBar() {
       <Link href="/calendario" className={linkClass('/calendario')}>
         <CalendarDays className="w-4 h-4" />
         Calendario
+      </Link>
+      <Link href="/clientes" className={linkClass('/clientes')}>
+        <Users className="w-4 h-4" />
+        Clientes
       </Link>
     </nav>
   );
